@@ -5,6 +5,8 @@
 
 #if __cpp_exceptions
 
+#include <stdexcept>
+
 #include "glaze/core/read.hpp"
 #include "glaze/core/write.hpp"
 

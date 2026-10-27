@@ -38,29 +38,13 @@ namespace glz
       typename T::constraint_t;
    };
 
-   template <uint32_t Format, is_read_constraint T>
-   struct from<Format, T>
+   namespace detail
    {
-      template <auto Opts>
-      static void op(auto&& value, is_context auto&& ctx, auto&& it, auto end)
-      {
-         read<Opts>(value, ctx, [&](auto& input) { parse<Format>::template op<Opts>(input, ctx, it, end); });
-      }
-
-      // The caller has already consumed the value's type tag and passes it in: MessagePack does
-      // this for every value, BEVE inside no_header contexts.
-      template <auto Opts>
-      static void op(auto&& value, const uint8_t tag, is_context auto&& ctx, auto&& it, auto end)
-      {
-         read<Opts>(value, ctx,
-                    [&](auto& input) { parse<Format>::template op<no_header_on<Opts>()>(input, tag, ctx, it, end); });
-      }
-
-     private:
+      // Shared constraint dispatch; each format supplies its native value reader.
       // parse_input(input) reads the incoming value into input, which is then checked against the
       // constraint before it is assigned to the target.
-      template <auto Opts>
-      static void read(auto&& value, is_context auto&& ctx, auto&& parse_input)
+      template <auto Opts, class T, class Ctx, class Read>
+      void dispatch_read_constraint(T&& value, Ctx& ctx, Read&& parse_input)
       {
          using V = std::decay_t<decltype(value)>;
          using Constraint = typename V::constraint_t;
@@ -190,6 +174,27 @@ namespace glz
                   "`glz::meta` outside your class so that your lambda can operate on a defined class.");
             }
          }
+      }
+   }
+
+   template <uint32_t Format, is_read_constraint T>
+   struct from<Format, T>
+   {
+      template <auto Opts>
+      static void op(auto&& value, is_context auto&& ctx, auto&& it, auto end)
+      {
+         detail::dispatch_read_constraint<Opts>(
+            value, ctx, [&](auto& input) { parse<Format>::template op<Opts>(input, ctx, it, end); });
+      }
+
+      // The caller has already consumed the value's type tag and passes it in: MessagePack does
+      // this for every value, BEVE inside no_header contexts.
+      template <auto Opts>
+      static void op(auto&& value, const uint8_t tag, is_context auto&& ctx, auto&& it, auto end)
+      {
+         detail::dispatch_read_constraint<Opts>(value, ctx, [&](auto& input) {
+            parse<Format>::template op<no_header_on<Opts>()>(input, tag, ctx, it, end);
+         });
       }
    };
 
