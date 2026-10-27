@@ -157,6 +157,13 @@ namespace glz
       // A TOML document with no keys is valid, so its reader decides by the type being read.
       if constexpr (Opts.format != NDJSON && Opts.format != TOML) {
          if (buffer.size() == 0) [[unlikely]] {
+            if constexpr (Opts.format == KDL) {
+               // A KDL document may contain zero nodes. Use a non-null iterator even
+               // when the caller's empty buffer has a null data pointer.
+               const char* it = "";
+               parse<Opts.format>::template op<Opts>(value, ctx, it, it);
+               return {0, ctx.error, ctx.custom_error_message};
+            }
             ctx.error = error_code::no_read_input;
             return {0, ctx.error, ctx.custom_error_message};
          }
@@ -247,7 +254,7 @@ namespace glz
                     "with strlen and stop at the first zero byte. Pass the buffer itself (e.g. the std::string, "
                     "not its .data()), or a std::string_view/std::span with an explicit size.");
       const auto str = std::string_view{std::forward<Buffer>(buffer)};
-      if constexpr (Opts.format != TOML) {
+      if constexpr (Opts.format != TOML && Opts.format != KDL) {
          if (str.empty()) {
             return {0, error_code::no_read_input};
          }
